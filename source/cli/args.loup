@@ -18,13 +18,18 @@ pub func type_switches(): list[SwitchSpec] {
     return none;
 }
 
+# The statement form of `match` (arms that return) is deliberate: a match
+# expression whose arms build new values returns freed memory natively.
 pub func parse_args(argv: list[string]): Result[Options, string] {
-    return match parse_switches(argv, type_switches()) {
-        Ok(parsed) => Ok(Options(
-            help = parsed.help,
-            version = parsed.version,
-            operands = parsed.operands,
-        )),
-        Err(e) => Err(switch_error_message(e)),
+    let parsed = match parse_switches(argv, type_switches()) {
+        Ok(p) => p,
+        Err(e) => {
+            return Err(switch_error_message(e));
+        },
     };
+    return Ok(Options(
+        help = parsed.help,
+        version = parsed.version,
+        operands = parsed.operands,
+    ));
 }

@@ -55,6 +55,9 @@ trailing separators) so expansions read naturally (`sub\*.txt` →
 - `parse_int_value` exists because `system.text.parseInt` does not link in
   native builds.
 - The unit tests must run with `loup-bootstrap test --no-parallel`.
+- No escapes inside `i"..."` (native builds print them literally) and no
+  `match` expressions whose arms build new values (native builds return freed
+  memory): use concatenation and the statement form of `match`.
 
 ## Error handling
 
@@ -65,5 +68,6 @@ throw for a missing directory (they return empty lists).
 ## Testing
 
 `tests/win_switches_test.loup`, `tests/win_wildcard_test.loup` (a table of
-pattern/name cases, and expansion over a tree built under `build/tmp/`) and
-`tests/win_paths_test.loup` travel with the modules.
+pattern/name cases, and expansion over a tree built under `build/tmp/`),
+`tests/win_paths_test.loup` and `tests/win_messages_test.loup` travel with
+the modules.

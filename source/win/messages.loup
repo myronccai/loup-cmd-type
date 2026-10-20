@@ -40,12 +40,13 @@ pub func msg_error_processing(display: string): string {
     return i"Error occurred while processing: {$ display $}.";
 }
 
-# dir, xcopy and others on a switch they do not know.
+# dir, xcopy and others on a switch they do not know. (Plain concatenation:
+# escapes inside i"..." are not decoded by native builds.)
 pub func msg_invalid_switch(text: string): string {
-    return i"Invalid switch - \"{$ text $}\".";
+    return "Invalid switch - \"" + text + "\".";
 }
 
 # A switch value of the wrong form (dir /A:Z).
 pub func msg_parameter_format(text: string): string {
-    return i"Parameter format not correct - \"{$ text $}\".";
+    return "Parameter format not correct - \"" + text + "\".";
 }
