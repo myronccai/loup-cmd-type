@@ -131,7 +131,7 @@ guide lives in `ccai-examples/shared/windows/`. In short:
 | Module | Gives you |
 |---|---|
 | `win/switches.loup` | `parse_switches(argv, specs)`: `/S`, `-s`, `/A:H`, `/AH`, `/T 10`, `/S/Q`, `/?`, `--`; a `/X` that is not declared is a path |
-| `win/wildcard.loup` | `wild_match` (Win32 DOS wildcards), `expand`, `list_matches`, `find_recursive`, NTFS-like name order |
+| `win/wildcard.loup` | `wild_match` (Win32 DOS wildcards), `expand`, `list_matches`, `walk_dirs` and `find_recursive` (which do not enter symbolic links to directories), NTFS-like name order |
 | `win/paths.loup` | `fs_path` (`\` → `/` for file access), `display_path` (`/` → `\` for printing), split/join helpers |
 | `win/messages.loup` | Windows' wording: `The system cannot find the file specified.` and others |
 

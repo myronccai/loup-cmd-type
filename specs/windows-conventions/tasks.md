@@ -16,3 +16,7 @@
   - _Requirements: 3.4_
 - [x] 8. Unit tests for all four modules; copy to ccai-examples/shared/windows
   - _Requirements: all_
+- [x] 9. `sort_names` with precomputed keys (native memory)
+  - _Requirements: 2.6_
+- [x] 10. Do not walk into symbolic links to directories (`symlinks_under`)
+  - _Requirements: 2.5_

@@ -54,9 +54,11 @@ that `del *.tmp` and `dir a?.txt` select what they select on Windows.
 4. THE expander SHALL return an operand without wildcards unchanged, and
    nothing for a wildcard in a directory component.
 5. THE library SHALL list matches recursively in `/S` order (each
-   directory's matches, then its subdirectories, depth first).
+   directory's matches, then its subdirectories, depth first), and SHALL
+   NOT descend into symbolic links to directories (they can form loops).
 6. THE library SHALL sort names as an NTFS listing does (upper-case form,
-   then exact form).
+   then exact form), at a cost that stays small for directories with
+   thousands of entries in native builds.
 
 ### Requirement 3: Paths and messages
 
