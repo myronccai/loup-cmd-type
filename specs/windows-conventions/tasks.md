@@ -1,0 +1,18 @@
+# Tasks: Windows conventions (shared code)
+
+- [x] 1. Switch specs, matching (longest name, `:`/`=`, glued with allowed characters)
+  - _Requirements: 1.1, 1.2, 1.3, 1.9_
+- [x] 2. Required values from the next argument; missing-value error
+  - _Requirements: 1.3, 1.4_
+- [x] 3. `/S/Q` splitting, opt-in clusters, `/?`, `--`, `--help`/`--version`
+  - _Requirements: 1.5, 1.6, 1.7, 1.8_
+- [x] 4. Win32 DOS-wildcard matcher (dynamic programming)
+  - _Requirements: 2.1, 2.2_
+- [x] 5. NTFS-like name order; listing, expansion, recursive search
+  - _Requirements: 2.3, 2.4, 2.5, 2.6_
+- [x] 6. Path helpers and the display convention
+  - _Requirements: 3.1, 3.2, 3.3_
+- [x] 7. Windows message texts
+  - _Requirements: 3.4_
+- [x] 8. Unit tests for all four modules; copy to ccai-examples/shared/windows
+  - _Requirements: all_

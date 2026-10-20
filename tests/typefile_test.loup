@@ -1,0 +1,82 @@
+@mode(host.dual)
+
+# Tests for the pure parts of type: planning the files to show, the name
+# header, and UTF-16LE decoding. The plan tests build files under build/tmp/.
+
+from debug.assert import (expect, expectEq);
+from io.fs import (createDir, writeText, removeDir, isDir);
+from win.messages import (MSG_ACCESS_DENIED, MSG_FILE_NOT_FOUND, MSG_INVALID_NAME, MSG_PATH_NOT_FOUND);
+from commands.typefile import (plan, name_header, is_utf16le, decode_utf16le, missing_reason, file_text);
+
+func make_tree(root: string): void {
+    if (isDir(root)) {
+        removeDir(root);
+    }
+    createDir(root + "/sub");
+    writeText(root + "/a.txt", "alpha\n");
+    writeText(root + "/b.txt", "bravo\n");
+    writeText(root + "/c.log", "charlie\n");
+}
+
+func test_plan_literal_and_wildcard_operands(): void {
+    let root = "build/tmp/typefile_plan";
+    make_tree(root);
+    let items = plan([root + "\\c.log", root + "/*.txt"]);
+    expectEq(items.len(), 3, "one literal and two matches");
+    expectEq(items[0].path, root + "/c.log", "literal in fs form");
+    expectEq(items[1].path, root + "/a.txt", "first match");
+    expectEq(items[2].path, root + "/b.txt", "second match");
+    expectEq(items[2].operand, root + "/*.txt", "operand kept");
+    for (item in items) {
+        expectEq(item.error, "", "no errors");
+    }
+    removeDir(root);
+}
+
+func test_plan_errors(): void {
+    let root = "build/tmp/typefile_errors";
+    make_tree(root);
+    let items = plan([root + "/missing.txt", root + "/nodir/x.txt", root + "/sub", root + "/*.none", root + "/s*/a.txt"]);
+    expectEq(items.len(), 5, "one item per failed operand");
+    expectEq(items[0].error, MSG_FILE_NOT_FOUND, "missing file");
+    expectEq(items[1].error, MSG_PATH_NOT_FOUND, "missing directory");
+    expectEq(items[2].error, MSG_ACCESS_DENIED, "a directory");
+    expectEq(items[3].error, MSG_FILE_NOT_FOUND, "no match");
+    expectEq(items[4].error, MSG_INVALID_NAME, "wildcard in a directory");
+    expectEq(missing_reason("no-such-file-here"), MSG_FILE_NOT_FOUND, "relative name");
+    removeDir(root);
+}
+
+func test_wildcards_skip_directories(): void {
+    let root = "build/tmp/typefile_dirs";
+    make_tree(root);
+    let items = plan([root + "/*"]);
+    expectEq(items.len(), 3, "sub is not shown");
+    removeDir(root);
+}
+
+func test_name_header(): void {
+    expectEq(name_header("sub/a.txt"), "\nsub\\a.txt\n\n", "blank line, name, blank lines");
+}
+
+func test_utf16le(): void {
+    let data = b"\xff\xfeH\x00i\x00\n\x00";
+    expect(is_utf16le(data), "BOM");
+    expect(!is_utf16le(b"Hi"), "no BOM");
+    expect(!is_utf16le(b"\xff"), "too short");
+    expectEq(decode_utf16le(data), "Hi\n", "ASCII");
+    expectEq(decode_utf16le(b"\xff\xfe\xe9\x00\x3a\x26"), "\u{e9}\u{263a}", "BMP characters");
+    expectEq(decode_utf16le(b"\xff\xfe\x3d\xd8\x00\xde"), "\u{1f600}", "surrogate pair");
+    expectEq(decode_utf16le(b"\xff\xfe\x3d\xd8A\x00"), "\u{fffd}A", "lone high surrogate");
+    expectEq(decode_utf16le(b"\xff\xfeA\x00B"), "A", "odd byte dropped");
+    expectEq(decode_utf16le(b"\xff\xfe"), "", "empty");
+}
+
+func test_file_text(): void {
+    let root = "build/tmp/typefile_text";
+    make_tree(root);
+    expectEq(file_text(root + "/a.txt"), "alpha\n", "plain text");
+    writeBytes(root + "/u16.txt", b"\xff\xfeo\x00k\x00");
+    expectEq(file_text(root + "/u16.txt"), "ok", "UTF-16LE");
+    removeDir(root);
+}

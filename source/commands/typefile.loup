@@ -1,0 +1,140 @@
+@mode(host.dual)
+
+# type: writes the contents of files to standard output, as cmd.exe's TYPE
+# does. Operands may use `\` or `/` and the wildcards `*` and `?`. When more
+# than one file is named, each file's name goes to standard error before its
+# contents, so `type *.txt > all.txt` collects only the contents.
+#
+# (The module is not called `type`: that is a reserved word in Loup.)
+
+from appinfo import (EXIT_OK, EXIT_FAILURE);
+from cli.args import (Options);
+from io.fs import (isDir, isFile);
+from win.messages import (MSG_ACCESS_DENIED, MSG_FILE_NOT_FOUND, MSG_INVALID_NAME,
+    MSG_PATH_NOT_FOUND, MSG_SYNTAX, msg_error_processing);
+from win.paths import (display_path, fs_path, parent_dir);
+from win.wildcard import (MATCH_FILES, expand, has_wildcards, wildcard_in_directory);
+
+# One step of the work: a file to show (error == ""), or an operand that
+# failed with a Windows message.
+pub struct Item {
+    pub path: string;      # fs form
+    pub error: string;     # "" or the message to print
+    pub operand: string;   # the operand as typed
+}
+
+func file_item(path: string, operand: string): Item {
+    return Item(path = path, error = "", operand = operand);
+}
+
+func error_item(message: string, operand: string): Item {
+    return Item(path = "", error = message, operand = operand);
+}
+
+# Why a path that is not a file cannot be shown.
+pub func missing_reason(path: string): string {
+    if (isDir(path)) {
+        return MSG_ACCESS_DENIED;
+    }
+    let dir = parent_dir(path);
+    if (dir.len() > 0 and !isDir(dir)) {
+        return MSG_PATH_NOT_FOUND;
+    }
+    return MSG_FILE_NOT_FOUND;
+}
+
+# Turns the operands into the files to show, in order. A wildcard operand
+# becomes its matching files (directories are skipped), sorted by name.
+pub func plan(operands: list[string]): list[Item] {
+    var items: list[Item] = [];
+    for (op in operands) {
+        if (wildcard_in_directory(op)) {
+            items.push(error_item(MSG_INVALID_NAME, op));
+        } else if (has_wildcards(op)) {
+            let matches = expand(op, MATCH_FILES);
+            if (matches.len() == 0) {
+                items.push(error_item(MSG_FILE_NOT_FOUND, op));
+            }
+            for (path in matches) {
+                items.push(file_item(path, op));
+            }
+        } else {
+            let path = fs_path(op);
+            if (isFile(path)) {
+                items.push(file_item(path, op));
+            } else {
+                items.push(error_item(missing_reason(path), op));
+            }
+        }
+    }
+    return items;
+}
+
+# What goes to standard error before a file when several are shown: a blank
+# line, the name, and two blank lines (printErr adds the last newline).
+pub func name_header(path: string): string {
+    return "\n" + display_path(path) + "\n\n";
+}
+
+# Whether the bytes start with the UTF-16LE byte order mark FF FE.
+pub func is_utf16le(data: bytes): bool {
+    return data.len() >= 2 and data[0] == 0xFF and data[1] == 0xFE;
+}
+
+# Decodes UTF-16LE text after its byte order mark. A lone surrogate becomes
+# U+FFFD; an odd final byte is dropped.
+pub func decode_utf16le(data: bytes): string {
+    var parts: list[string] = [];
+    var i = 2;
+    while (i + 1 < data.len()) {
+        var unit = data[i] | (data[i + 1] << 8);
+        i += 2;
+        if (unit >= 0xD800 and unit <= 0xDBFF and i + 1 < data.len()) {
+            let low = data[i] | (data[i + 1] << 8);
+            if (low >= 0xDC00 and low <= 0xDFFF) {
+                unit = 0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00);
+                i += 2;
+            }
+        }
+        if (unit >= 0xD800 and unit <= 0xDFFF) {
+            unit = 0xFFFD;
+        }
+        parts.push(str(char.of(unit)));
+    }
+    return parts.join("");
+}
+
+# The text type shows for a file: UTF-16LE files (Windows "Unicode" text)
+# are converted to UTF-8; anything else is passed through byte for byte.
+pub func file_text(path: string): string {
+    let data = readBytes(path);
+    if (is_utf16le(data)) {
+        return decode_utf16le(data);
+    }
+    return readText(path);
+}
+
+pub func run_type(opts: Options): int {
+    if (opts.operands.len() == 0) {
+        printErr(MSG_SYNTAX);
+        return EXIT_FAILURE;
+    }
+    let items = plan(opts.operands);
+    let several = items.len() > 1;
+    var status = EXIT_OK;
+    for (item in items) {
+        if (item.error.len() > 0) {
+            printErr(item.error);
+            if (several) {
+                printErr(msg_error_processing(display_path(item.operand)));
+            }
+            status = EXIT_FAILURE;
+            continue;
+        }
+        if (several) {
+            printErr(name_header(item.path));
+        }
+        print(file_text(item.path));
+    }
+    return status;
+}

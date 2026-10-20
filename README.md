@@ -1,12 +1,16 @@
-# template Loup commandline application
+# loup-cmd-type
 
-A GitHub template for a command-line application written in
-[Loup](https://code-craft.ai/references/loup). It includes argument parsing,
-command dispatch, a sample `hello` command, tests, a native build and a CI
-workflow.
+The Windows `type` command recreated in [Loup](https://code-craft.ai/references/loup):
+display the contents of text files, with cmd's wildcards, `\` paths,
+messages and ERRORLEVELs, on Linux.
 
-After creating a repository from this template, work through
-[REPOSITORY_TODOS.md](REPOSITORY_TODOS.md).
+Part of the **loup-cmd** series of example applications: classic Linux and
+Windows commands, and projects for each Loup execution mode, each in its own
+repository under [myronccai](https://github.com/myronccai?tab=repositories&q=loup-cmd).
+This one is `host.dual` Loup built as a native binary, and it is the pilot of
+the Windows set: it introduces the shared Windows code in
+[`source/win/`](source/win/) (switch parser, wildcard matcher, path helpers,
+messages) that the other Windows commands copy.
 
 ## Requirements
 
@@ -14,70 +18,140 @@ After creating a repository from this template, work through
 
   ```sh
   curl -fsSL https://github.com/code-craft-ai-company/loup-releases/releases/latest/download/loup-install.sh | sh
-  loup --version
   ```
 
-- `make`
-- `clang` 17 or later for native builds. Native builds are supported on Linux
-  x86-64 and arm64, and are a preview on macOS and Windows.
+- `make`, and `clang` 17 or later for the native build.
 
 ## Usage
 
 ```sh
-make run ARGS="--help"            # run from source
-make run ARGS="hello Ann --shout"
-make check                        # type-check the program
-make test                         # run the tests in tests/
-make build                        # native binary: build/myapp
-make ci                           # check, test, build and smoke-test the binary
-make clean
+make build                     # native binary: build/type
+make ci                        # check, unit tests, build, end-to-end tests
+make run ARGS="README.md"      # run from source with loup run
 ```
+
+Quote operands that contain `\`, `*` or `?` so that the Linux shell passes
+them through: cmd does not expand wildcards, the command does.
 
 ```text
-$ build/myapp --help
-usage: myapp [OPTIONS] COMMAND [ARGS...]
+$ build/type 'demo\hello.txt'
+Hello from type.
+$ build/type 'demo\*.txt'
 
-A command-line application written in Loup.
+demo\hello.txt
 
-Commands:
-  hello [NAME]          Print a greeting (NAME defaults to 'world')
-  help                  Show this help
 
-Options:
-  -g, --greeting TEXT   Greeting used by 'hello' (default: Hello)
-      --shout           Print the greeting in upper case
-  -v, --verbose         Print diagnostic messages to stderr
-  -h, --help            Show this help and exit
-  -V, --version         Show the version and exit
+Hello from type.
+
+demo\notes.txt
+
+
+Second file.
+
+demo\unicode.txt
+
+
+UTF-16 text
+$ build/type 'demo\*.txt' 2>/dev/null
+Hello from type.
+Second file.
+UTF-16 text
+$ build/type 'demo\logs\*.log' > all.txt
+
+demo\logs\app.log
+
+
+
+demo\logs\old.LOG
+
+
+$ cat all.txt
+started
+stopped
+$ build/type 'demo\missing.txt'; echo "ERRORLEVEL $?"
+The system cannot find the file specified.
+ERRORLEVEL 1
+$ build/type 'demo\hello.txt' 'demo\missing.txt'
+
+demo\hello.txt
+
+
+Hello from type.
+The system cannot find the file specified.
+Error occurred while processing: demo\missing.txt.
+$ build/type demo; echo "ERRORLEVEL $?"
+Access is denied.
+ERRORLEVEL 1
+$ build/type '/?'
+Displays the contents of a text file or files.
+
+TYPE [drive:][path]filename
+$ build/type --version
+type (loup-cmd-type) 0.1.0
 ```
 
-Exit status: `0` success, `1` runtime failure, `2` usage error.
+(`demo\unicode.txt` is UTF-16LE with a byte order mark; `type` shows it as
+UTF-8 text.)
+
+`type` has no switches. `/?` (or `-?`) anywhere prints the help; every other
+argument names a file, including `/X` and `-X`, and `--` ends switch
+parsing. Operands accept `\` and `/`; wildcards `*` and `?` in the last
+component follow Windows rules (case-insensitive, `*.*` matches every name,
+`*.` matches names without an extension, `a?.txt` also matches `a.txt`),
+skip directories, and are sorted by name. When more than one file is shown,
+each name goes to standard error first, so redirecting standard output
+collects only the contents.
+
+Exit status (ERRORLEVEL): `0` if every file was shown, `1` if any operand
+failed or none was given.
+
+## Differences from the original
+
+- File names are case-sensitive on Linux: `type A.TXT` does not open
+  `a.txt`. Wildcards ignore case, so `type A.TX?` does.
+- No 8.3 short names, so `*.txt` does not also match `a.txtx`.
+- Paths are printed with `\` (`demo\hello.txt`), also when typed with `/`; a
+  Linux file name containing `\` cannot be named.
+- Messages end with LF, not CRLF. File contents are written unchanged; only
+  UTF-16LE files with a byte order mark are converted (to UTF-8, where
+  Windows converts to the console code page).
+- No device names (`type CON`), no drive letters.
+- An unreadable file (permissions) stops the program with the toolchain's
+  `IoError` message instead of `Access is denied.`: Loup 1.26.0 has no
+  `stat()`, and a native `IoError` cannot be caught.
+- A name header is printed only when more than one file is shown in total.
+- `--help` and `--version` as the only argument are series conventions.
+
+## Shared Windows code
+
+[`source/win/`](source/win/) is the master implementation of the Windows
+conventions used by every loup-cmd Windows command; a copy with a usage
+guide lives in `ccai-examples/shared/windows/`. In short:
+
+| Module | Gives you |
+|---|---|
+| `win/switches.loup` | `parse_switches(argv, specs)`: `/S`, `-s`, `/A:H`, `/AH`, `/T 10`, `/S/Q`, `/?`, `--`; a `/X` that is not declared is a path |
+| `win/wildcard.loup` | `wild_match` (Win32 DOS wildcards), `expand`, `list_matches`, `find_recursive`, NTFS-like name order |
+| `win/paths.loup` | `fs_path` (`\` → `/` for file access), `display_path` (`/` → `\` for printing), split/join helpers |
+| `win/messages.loup` | Windows' wording: `The system cannot find the file specified.` and others |
+
+The design is in [specs/windows-conventions/](specs/windows-conventions/).
 
 ## Layout
 
 ```text
-package.lppkg            # Loup manifest
-Makefile                 # run, check, test, build, ci, clean
-source/                  # the application's Loup code
-├── main.loup            # entry point
-├── cli/                 # argument parsing, help text, command dispatch
-└── commands/            # one module per command
-tests/                   # *_test.loup files
-specs/                   # feature specs: requirements, design, tasks
-skills/loup-programmer/  # agent skill for writing Loup
+source/main.loup               # entry point
+source/appinfo.loup            # name, version, exit statuses
+source/cli/args.loup           # type's switches (none) via win.switches
+source/cli/usage.loup          # /? and --version text
+source/cli/app.loup            # run(): parse, dispatch, exit status
+source/commands/typefile.loup  # plan the files, read, print (`type` is a Loup reserved word)
+source/win/                    # shared Windows code: switches, wildcards, paths, messages
+tests/*_test.loup              # unit tests (make test)
+tests/e2e.sh                   # end-to-end tests of build/type (make e2e)
+specs/type/                    # requirements, design, tasks
+specs/windows-conventions/     # the shared Windows code
 ```
 
-[AGENTS.md](AGENTS.md) has the full layout, every build and test command, and
-the steps for adding a command.
-
-## Notes on the toolchain
-
-- On Linux x86-64, `loup` is the self-hosted driver and `loup-bootstrap` is
-  Stage0. `check` and `test` use `loup-bootstrap`; on other platforms both
-  names run the same tool. The Makefile handles this.
-- Modules import each other by their path under `source/`
-  (`from cli.args import (Options);`). Tests import them the same way, which
-  is why `make test` puts `source/` on `LOUPPATH`.
-- The Wasm build (`loup-bootstrap build`) is experimental: modules that use
-  `i"..."` interpolation build but trap at run time, so this template builds
-  native binaries.
+[AGENTS.md](AGENTS.md) has every build and test command and the conventions
+for changing the code.
