@@ -5,6 +5,16 @@
 # than one file is named, each file's name goes to standard error before its
 # contents, so `type *.txt > all.txt` collects only the contents.
 #
+# Runtime: host.dual. Compiled into the native binary build/type by
+# `make build`; `loup run source/main.loup` interprets the same code. The unit
+# tests call its pure functions under Stage0, where readText rejects invalid
+# UTF-8; tests/e2e.sh covers binary files against the native build.
+#
+# Structure: plan() turns the operands into Items (a file to show, or an
+# operand that failed with its Windows message) without printing anything;
+# file_text() reads one file, converting UTF-16LE text; run_type() walks the
+# plan and is the only function that prints.
+#
 # (The module is not called `type`: that is a reserved word in Loup.)
 
 from appinfo import (EXIT_OK, EXIT_FAILURE);
