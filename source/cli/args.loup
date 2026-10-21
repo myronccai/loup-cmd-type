@@ -7,7 +7,7 @@
 # Runtime: host.dual. Compiled into the native binary build/type by
 # `make build`; `loup run source/main.loup` interprets the same code.
 
-from win.switches import (SwitchSpec, parse_switches, switch_error_message);
+from win.switches import (SwitchSpec, UsageError, parse_switches);
 
 pub struct Options {
     pub help: bool;
@@ -21,15 +21,11 @@ pub func type_switches(): list[SwitchSpec] {
     return none;
 }
 
-# The statement form of `match` (arms that return) is deliberate: a match
-# expression whose arms build new values returns freed memory natively.
-pub func parse_args(argv: list[string]): Result[Options, string] {
-    let parsed = match parse_switches(argv, type_switches()) {
-        Ok(p) => p,
-        Err(e) => {
-            return Err(switch_error_message(e));
-        },
-    };
+# A usage error comes back as a UsageError: `?` converts the parser's
+# SwitchError with UsageError.from() (win/switches.loup). type declares no
+# switch that takes a value, so in practice parsing always succeeds.
+pub func parse_args(argv: list[string]): Result[Options, UsageError] {
+    let parsed = parse_switches(argv, type_switches())?;
     return Ok(Options(
         help = parsed.help,
         version = parsed.version,

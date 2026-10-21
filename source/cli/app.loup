@@ -16,8 +16,8 @@ from commands.typefile import (run_type);
 pub func run(argv: list[string]): int {
     let opts = match parse_args(argv) {
         Ok(parsed) => parsed,
-        Err(msg) => {
-            printErr(msg);
+        Err(e) => {
+            printErr(e.message);
             return EXIT_FAILURE;
         },
     };
