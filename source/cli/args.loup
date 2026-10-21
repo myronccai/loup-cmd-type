@@ -2,7 +2,8 @@
 
 # Command-line parsing for type. type has no switches of its own: `/?` asks
 # for help, and every other argument (including `/X` and `-X`) names a file,
-# following the Windows switch convention in win/switches.loup.
+# following the Windows switch convention in win/switches.loup. Errors are
+# UsageErrors (win/switches.loup).
 #
 # Runtime: host.dual. Compiled into the native binary build/type by
 # `make build`; `loup run source/main.loup` interprets the same code.

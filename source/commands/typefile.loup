@@ -12,7 +12,8 @@
 #
 # Structure: plan() turns the operands into Items (a file to show, or an
 # operand that failed with its Windows message) without printing anything;
-# file_text() reads one file, converting UTF-16LE text; run_type() walks the
+# file_text() reads one file, converting UTF-16LE text, which is_utf16le() and
+# decode_utf16le() read through an io.streams.ByteReader; run_type() walks the
 # plan and is the only function that prints.
 #
 # (The module is not called `type`: that is a reserved word in Loup.)
@@ -20,6 +21,7 @@
 from appinfo import (EXIT_OK, EXIT_FAILURE);
 from cli.args import (Options);
 from io.fs import (isDir, isFile);
+from io.streams import (ByteReader);
 from win.messages import (MSG_ACCESS_DENIED, MSG_FILE_NOT_FOUND, MSG_INVALID_NAME,
     MSG_PATH_NOT_FOUND, MSG_SYNTAX, msg_error_processing);
 from win.paths import (display_path, fs_path, parent_dir);
@@ -86,24 +88,34 @@ pub func name_header(path: string): string {
     return "\n" + display_path(path) + "\n\n";
 }
 
-# Whether the bytes start with the UTF-16LE byte order mark FF FE.
-pub func is_utf16le(data: bytes): bool {
-    return data.len() >= 2 and data[0] == 0xFF and data[1] == 0xFE;
+# Whether the bytes start with the UTF-16LE byte order mark FF FE. The
+# functions that read through a ByteReader are `safe func`: its read
+# methods move the cursor (they are modifiers).
+pub safe func is_utf16le(data: bytes): bool {
+    var r = ByteReader(data);
+    return r.remaining() >= 2 and r.readByte() == 0xFF and r.readByte() == 0xFE;
 }
 
-# Decodes UTF-16LE text after its byte order mark. A lone surrogate becomes
-# U+FFFD; an odd final byte is dropped.
-pub func decode_utf16le(data: bytes): string {
+# Decodes UTF-16LE text after its byte order mark, one 16-bit unit (low
+# byte first) at a time. A high surrogate followed by a low one makes one
+# code point; a lone surrogate becomes U+FFFD (when the next unit is not a
+# low surrogate, the reader steps back so that it is decoded on its own);
+# an odd final byte is dropped.
+pub safe func decode_utf16le(data: bytes): string {
+    var r = ByteReader(data);
+    r.seek(2);
     var parts: list[string] = [];
-    var i = 2;
-    while (i + 1 < data.len()) {
-        var unit = data[i] | (data[i + 1] << 8);
-        i += 2;
-        if (unit >= 0xD800 and unit <= 0xDBFF and i + 1 < data.len()) {
-            let low = data[i] | (data[i + 1] << 8);
+    while (r.remaining() >= 2) {
+        let lo = r.readByte();
+        var unit = lo | (r.readByte() << 8);
+        if (unit >= 0xD800 and unit <= 0xDBFF and r.remaining() >= 2) {
+            let at = r.position();
+            let low_lo = r.readByte();
+            let low = low_lo | (r.readByte() << 8);
             if (low >= 0xDC00 and low <= 0xDFFF) {
                 unit = 0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00);
-                i += 2;
+            } else {
+                r.seek(at);
             }
         }
         if (unit >= 0xD800 and unit <= 0xDFFF) {
